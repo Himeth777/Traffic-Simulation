@@ -1,0 +1,321 @@
+// Ensure canvas setup
+const canvas = document.getElementById("junctionCanvas");
+const ctx = canvas.getContext("2d");
+
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
+
+const intersectionSize = 80;
+const intersectionX = (WIDTH - intersectionSize) / 2;
+const intersectionY = (HEIGHT - intersectionSize) / 2;
+n = 0;
+
+const stopLines = {
+    horizontal: {
+        incoming: intersectionX - 60,
+        outgoing: intersectionX + intersectionSize + 20
+    },
+    vertical: {
+        incoming: intersectionY - 60,
+        outgoing: intersectionY + intersectionSize + 20
+    }
+};
+
+// Lane offsets (fixed positions for lanes)
+const laneOffsets = {
+    vertical: {
+        incoming: WIDTH / 2 - 20, // Left lane
+        outgoing: WIDTH / 2 // Right lane
+    },
+    horizontal: {
+        incoming: HEIGHT / 2 - 20, // Top lane
+        outgoing: HEIGHT / 2 // Bottom lane
+    }
+};
+
+const spawnPoints = {
+    horizontal: {
+        incoming: { x: -50, y: laneOffsets.horizontal.incoming },
+        outgoing: { x: WIDTH + 50, y: laneOffsets.horizontal.outgoing }
+    },
+    vertical: {
+        incoming: { x: laneOffsets.vertical.outgoing, y: -50 },
+        outgoing: { x: laneOffsets.vertical.incoming, y: HEIGHT + 50 }
+    }
+};
+
+const vehicleColors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
+
+// Vehicle class
+class Vehicle {
+    constructor(x, y, direction, speed, lane, color) {
+        this.x = x;
+        this.y = y;
+        this.direction = direction; // "horizontal" or "vertical"
+        this.speed = speed;
+        this.lane = lane; // "incoming" or "outgoing"
+        this.color = color;
+    }
+
+    shouldStop() {
+        //n = 0;
+        const light = this.getRelevantTrafficLight();
+        if (!light) return false;
+
+        if (this.direction === "horizontal") {
+            if (this.lane === "incoming" && 
+                this.x <= stopLines.horizontal.incoming && 
+                light.isRed) {
+                    while(this.x < stopLines.horizontal.incoming){
+                        n = n + 1;
+                        return false;
+                    }
+                return true;
+                //n = 0;
+            }
+            else if (this.lane === "outgoing" && 
+                this.x >= stopLines.horizontal.outgoing && 
+                light.isRed) {
+                    while(this.x > stopLines.horizontal.outgoing + (40*n + 5)){
+                        n = n + 1;
+                        return false;
+                    }
+                return true;
+            }
+        } else if (this.direction === "vertical") {
+            if (this.lane === "outgoing" && 
+                this.y >= stopLines.vertical.outgoing && 
+                light.isRed) {
+                    while(this.y > stopLines.vertical.outgoing){
+                        return false;
+                    }
+                return true;
+            }
+            else if (this.lane === "incoming" && 
+                this.y <= stopLines.vertical.incoming && 
+                light.isRed) {
+                    while(this.y < stopLines.vertical.incoming){
+                        return false;
+                    }
+                return true;
+            }
+            
+        }
+        return false;
+    }
+
+    getRelevantTrafficLight() {
+        if (this.direction === "horizontal") {
+            return this.lane === "incoming" ? 
+                trafficLights.find(l => l.id === 4) : 
+                trafficLights.find(l => l.id === 3);
+        } else {
+            return this.lane === "incoming" ? 
+                trafficLights.find(l => l.id === 2) : 
+                trafficLights.find(l => l.id === 1);
+        }
+    }
+
+    move() {
+        if (this.shouldStop()) return;
+
+        if (this.direction === "horizontal") {
+            this.x += this.lane === "incoming" ? this.speed : -this.speed;
+            if (this.x > WIDTH) this.x = -50;
+            if (this.x < -50) this.x = WIDTH;
+        } else if (this.direction === "vertical") {
+            this.y += this.lane === "incoming" ? this.speed : -this.speed;
+            if (this.y > HEIGHT) this.y = -50;
+            if (this.y < -50) this.y = HEIGHT;
+        }
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        if (this.direction === "vertical") ctx.fillRect(this.x, this.y, 20, 40);
+        else if (this.direction === "horizontal") ctx.fillRect(this.x, this.y, 40, 20);
+    }
+}
+
+
+
+// Create vehicles
+const vehicles = [
+    // Horizontal lane vehicles
+    new Vehicle(-50, laneOffsets.horizontal.incoming, "horizontal", 2, "incoming", "red"),
+    new Vehicle(WIDTH + 50, laneOffsets.horizontal.outgoing, "horizontal", 3, "outgoing", "blue"),
+    // Vertical lane vehicles
+    new Vehicle(laneOffsets.vertical.incoming, -50, "vertical", 2, "outgoing", "green"),
+    new Vehicle(laneOffsets.vertical.outgoing, HEIGHT + 50, "vertical", 2, "incoming", "yellow"),
+];
+
+
+const trafficLights = [
+    { id: 1, x: intersectionX, y: intersectionY + 80, isRed: true, toggleInterval: 2000 },
+    { id: 2, x: intersectionX + 40, y: intersectionY - 20, isRed: true, toggleInterval: 2000 },
+    { id: 3, x: intersectionX + 80, y: intersectionY + 40, isRed: true, toggleInterval: 2000 },
+    { id: 4, x: intersectionX - 20, y: intersectionY, isRed: true, toggleInterval: 2000 }
+];
+
+
+// Draw junction and roads
+function drawJunction() {
+    
+
+    ctx.fillStyle = "#808080"; // Gray roads
+
+    // Vertical road
+    const verticalRoadWidth = 80;
+    ctx.fillRect(intersectionX, 0, verticalRoadWidth, HEIGHT);
+
+    // Horizontal road
+    const horizontalRoadHeight = 80;
+    ctx.fillRect(0, intersectionY, WIDTH, horizontalRoadHeight);
+
+    // Lane dividers
+    ctx.strokeStyle = "#FFFFFF";
+    ctx.lineWidth = 2;
+
+    // Vertical road dividers
+    for (let i = 1; i <= 3; i++) {
+        const x = intersectionX + i * 20;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, HEIGHT);
+        ctx.stroke();
+    }
+
+    // Horizontal road dividers
+    for (let i = 1; i <= 3; i++) {
+        const y = intersectionY + i * 20;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(WIDTH, y);
+        ctx.stroke();
+    }
+
+    // Centralized intersection box
+    ctx.fillStyle = "#555";
+    ctx.fillRect(intersectionX, intersectionY, intersectionSize, intersectionSize);
+
+    //traffic light
+    
+    // Function to draw traffic light rectangles
+    function drawTrafficLightRectangles() {
+        ctx.fillStyle = "black";
+        trafficLights.forEach(light => {
+            if (light.id === 1 || light.id === 2) {
+                ctx.fillRect(light.x, light.y, 40, 20);
+            } else {
+                ctx.fillRect(light.x, light.y, 20, 40);
+            }
+        });
+    }
+
+    function drawTrafficLightCircles(x, y, isRed, id) {
+        // Red light
+        ctx.beginPath();
+        ctx.arc(x + 10, y + 5, 5, 0, Math.PI * 2);
+        ctx.fillStyle = isRed ? "red" : "gray";
+        ctx.fill();
+    
+        // Green light
+        ctx.beginPath();
+        if (id === 3 || id === 4) {
+            ctx.arc(x + 10, y + 30, 5, 0, Math.PI * 2);
+        } else {
+            ctx.arc(x + 30, y + 5, 5, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = isRed ? "gray" : "green";
+        ctx.fill();
+    }
+    
+    function drawTrafficLights() {
+        drawTrafficLightRectangles();
+        trafficLights.forEach(light => {
+            drawTrafficLightCircles(light.x, light.y, light.isRed, light.id);
+        });
+    }
+
+    drawTrafficLights();
+
+}
+
+// Add activeLight tracker
+let activeLight = 1; // Start with light 1 being active (green)
+
+// Modified toggle function to coordinate lights
+function toggleTrafficLights() {
+    // Set all lights to red first
+    trafficLights.forEach(light => {
+        light.isRed = true;
+    });
+    
+    // Set current active light to green
+    const currentLight = trafficLights.find(light => light.id === activeLight);
+    if (currentLight) {
+        currentLight.isRed = false;
+    }
+    
+    // Move to next light
+    activeLight = (activeLight % 4) + 1;
+    
+    console.log(`Active light is now ${activeLight}`);
+}
+
+// Modified initialization
+function initializeTrafficLights() {
+    // Set all lights red initially
+    trafficLights.forEach(light => light.isRed = true);
+    
+    // Start the traffic light cycle
+    setInterval(toggleTrafficLights, 2000);
+}
+
+// Remove individual light intervals, keep animation loop as is
+// ...existing code...
+
+
+
+
+function createRandomVehicle() {
+    const direction = Math.random() < 0.5 ? "horizontal" : "vertical";
+    const lane = Math.random() < 0.5 ? "incoming" : "outgoing";
+    const speed = 2; // Speed between 2 and 4
+    const color = vehicleColors[Math.floor(Math.random() * vehicleColors.length)];
+    
+    const spawn = spawnPoints[direction][lane];
+    return new Vehicle(spawn.x, spawn.y, direction, speed, lane, color);
+}
+
+// Initialize vehicle spawn
+setInterval(() => {
+    vehicles.push(createRandomVehicle());
+}, 10000); // 10 seconds
+
+// Update animate function
+function animate() {
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+    drawJunction();
+    
+    // Update and draw vehicles
+    vehicles.forEach((vehicle, index) => {
+        vehicle.move();
+        vehicle.draw();
+        
+        // Optional: Remove vehicles that are too far off screen
+        if (vehicle.x < -100 || vehicle.x > WIDTH + 100 || 
+            vehicle.y < -100 || vehicle.y > HEIGHT + 100) {
+            vehicles.splice(index, 1);
+        }
+    });
+
+    requestAnimationFrame(animate);
+}
+
+// Start simulation
+
+animate();
+setTimeout(() => {
+    initializeTrafficLights();
+}, 1000); 
