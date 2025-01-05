@@ -25,23 +25,47 @@ const stopLines = {
 // Lane offsets (fixed positions for lanes)
 const laneOffsets = {
     vertical: {
-        incoming: WIDTH / 2 - 20, // Left lane
-        outgoing: WIDTH / 2 // Right lane
+        outgoing: {
+            left: WIDTH / 2 - 40,
+            right: WIDTH / 2 - 20
+        },
+        incoming: {
+            left: WIDTH / 2,
+            right: WIDTH / 2 + 20
+        }
     },
     horizontal: {
-        incoming: HEIGHT / 2 - 20, // Top lane
-        outgoing: HEIGHT / 2 // Bottom lane
+        incoming: {
+            top: HEIGHT / 2 - 40,
+            bottom: HEIGHT / 2 - 20
+        },
+        outgoing: {
+            top: HEIGHT / 2,
+            bottom: HEIGHT / 2 + 20
+        }
     }
 };
 
 const spawnPoints = {
     horizontal: {
-        incoming: { x: -50, y: laneOffsets.horizontal.incoming },
-        outgoing: { x: WIDTH + 50, y: laneOffsets.horizontal.outgoing }
+        incoming: [
+            { x: -50, y: laneOffsets.horizontal.incoming.top },
+            { x: -50, y: laneOffsets.horizontal.incoming.bottom }
+        ],
+        outgoing: [
+            { x: WIDTH + 50, y: laneOffsets.horizontal.outgoing.top },
+            { x: WIDTH + 50, y: laneOffsets.horizontal.outgoing.bottom }
+        ]
     },
     vertical: {
-        incoming: { x: laneOffsets.vertical.outgoing, y: -50 },
-        outgoing: { x: laneOffsets.vertical.incoming, y: HEIGHT + 50 }
+        incoming: [
+            { x: laneOffsets.vertical.incoming.left, y: -50 },
+            { x: laneOffsets.vertical.incoming.right, y: -50 }
+        ],
+        outgoing: [
+            { x: laneOffsets.vertical.outgoing.left, y: HEIGHT + 50 },
+            { x: laneOffsets.vertical.outgoing.right, y: HEIGHT + 50 }
+        ]
     }
 };
 
@@ -300,10 +324,11 @@ function initializeTrafficLights() {
 function createRandomVehicle() {
     const direction = Math.random() < 0.5 ? "horizontal" : "vertical";
     const lane = Math.random() < 0.5 ? "incoming" : "outgoing";
-    const speed = 2; // Speed between 2 and 4
+    const sublane = Math.random() < 0.5 ? 0 : 1; // Choose between two lanes
+    const speed = 2;
     const color = vehicleColors[Math.floor(Math.random() * vehicleColors.length)];
     
-    const spawn = spawnPoints[direction][lane];
+    const spawn = spawnPoints[direction][lane][sublane];
     return new Vehicle(spawn.x, spawn.y, direction, speed, lane, color);
 }
 
