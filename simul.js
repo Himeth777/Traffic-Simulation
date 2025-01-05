@@ -124,9 +124,9 @@ class Vehicle {
             v.lane === this.lane
         ).sort((a, b) => {
             if (this.direction === "horizontal") {
-                return this.lane === "incoming" ? b.x - a.x : a.x - b.x;
+                return this.lane === "incoming" ? a.x - b.x : b.x - a.x;
             } else {
-                return this.lane === "incoming" ? b.y - a.y : a.y - b.y;
+                return this.lane === "incoming" ? a.y - b.y : b.y - a.y;
             }
         });
 
