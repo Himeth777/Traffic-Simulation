@@ -8,6 +8,7 @@ const HEIGHT = canvas.height;
 const intersectionSize = 80;
 const intersectionX = (WIDTH - intersectionSize) / 2;
 const intersectionY = (HEIGHT - intersectionSize) / 2;
+const SAFE_DISTANCE = 50;
 n = 0;
 
 const stopLines = {
@@ -57,49 +58,67 @@ class Vehicle {
         this.color = color;
     }
 
+    isColliding(otherVehicle) {
+        if (this.direction !== otherVehicle.direction) return false;
+        if (this.lane !== otherVehicle.lane) return false;
+    
+        if (this.direction === "horizontal") {
+            return Math.abs(this.x - otherVehicle.x) < SAFE_DISTANCE;
+        } else {
+            return Math.abs(this.y - otherVehicle.y) < SAFE_DISTANCE;
+        }
+    }
+
     shouldStop() {
-        //n = 0;
         const light = this.getRelevantTrafficLight();
         if (!light) return false;
-
+    
+        // Check for vehicles ahead
+        const vehiclesAhead = vehicles.filter(v => 
+            v !== this && 
+            v.direction === this.direction && 
+            v.lane === this.lane
+        );
+    
         if (this.direction === "horizontal") {
-            if (this.lane === "incoming" && 
-                this.x <= stopLines.horizontal.incoming && 
-                light.isRed) {
-                    while(this.x < stopLines.horizontal.incoming){
-                        n = n + 1;
-                        return false;
-                    }
-                return true;
-                //n = 0;
+            if (this.lane === "incoming") {
+                // Check traffic light
+                if (this.x >= stopLines.horizontal.incoming && light.isRed) {
+                    return true;
+                }
+                // Check vehicles ahead
+                return vehiclesAhead.some(v => 
+                    v.x > this.x && 
+                    v.x - this.x < SAFE_DISTANCE
+                );
+            } else {
+                // Similar logic for outgoing
+                if (this.x <= stopLines.horizontal.outgoing && light.isRed) {
+                    return true;
+                }
+                return vehiclesAhead.some(v => 
+                    v.x < this.x && 
+                    this.x - v.x < SAFE_DISTANCE
+                );
             }
-            else if (this.lane === "outgoing" && 
-                this.x >= stopLines.horizontal.outgoing && 
-                light.isRed) {
-                    while(this.x > stopLines.horizontal.outgoing + (40*n + 5)){
-                        n = n + 1;
-                        return false;
-                    }
-                return true;
+        } else {
+            if (this.lane === "incoming") {
+                if (this.y >= stopLines.vertical.incoming && light.isRed) {
+                    return true;
+                }
+                return vehiclesAhead.some(v => 
+                    v.y > this.y && 
+                    v.y - this.y < SAFE_DISTANCE
+                );
+            } else {
+                if (this.y <= stopLines.vertical.outgoing && light.isRed) {
+                    return true;
+                }
+                return vehiclesAhead.some(v => 
+                    v.y < this.y && 
+                    this.y - v.y < SAFE_DISTANCE
+                );
             }
-        } else if (this.direction === "vertical") {
-            if (this.lane === "outgoing" && 
-                this.y >= stopLines.vertical.outgoing && 
-                light.isRed) {
-                    while(this.y > stopLines.vertical.outgoing){
-                        return false;
-                    }
-                return true;
-            }
-            else if (this.lane === "incoming" && 
-                this.y <= stopLines.vertical.incoming && 
-                light.isRed) {
-                    while(this.y < stopLines.vertical.incoming){
-                        return false;
-                    }
-                return true;
-            }
-            
         }
         return false;
     }
