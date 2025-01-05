@@ -9,7 +9,9 @@ const intersectionSize = 80;
 const intersectionX = (WIDTH - intersectionSize) / 2;
 const intersectionY = (HEIGHT - intersectionSize) / 2;
 const SAFE_DISTANCE = 50;
-n = 0;
+
+const VEHICLE_LENGTH = 40;
+const QUEUE_GAP = 5;
 
 const stopLines = {
     horizontal: {
@@ -93,58 +95,78 @@ class Vehicle {
         }
     }
 
-    shouldStop() {
-        const light = this.getRelevantTrafficLight();
-        if (!light) return false;
-    
-        // Check for vehicles ahead
+    getQueuePosition() {
         const vehiclesAhead = vehicles.filter(v => 
             v !== this && 
             v.direction === this.direction && 
             v.lane === this.lane
-        );
-    
+        ).sort((a, b) => {
+            if (this.direction === "horizontal") {
+                return this.lane === "incoming" ? b.x - a.x : a.x - b.x;
+            } else {
+                return this.lane === "incoming" ? b.y - a.y : a.y - b.y;
+            }
+        });
+
+        return vehiclesAhead.indexOf(this);
+    }
+
+    shouldStop() {
+        const light = this.getRelevantTrafficLight();
+        if (!light) return false;
+
+        const queuePosition = this.getQueuePosition();
+        const queueOffset = (VEHICLE_LENGTH + QUEUE_GAP) * queuePosition;
+
+        const vehiclesAhead = vehicles.filter(v => 
+            v !== this && 
+            v.direction === this.direction && 
+            v.lane === this.lane
+        ).sort((a, b) => {
+            if (this.direction === "horizontal") {
+                return this.lane === "incoming" ? b.x - a.x : a.x - b.x;
+            } else {
+                return this.lane === "incoming" ? b.y - a.y : a.y - b.y;
+            }
+        });
+
         if (this.direction === "horizontal") {
             if (this.lane === "incoming") {
-                // Check traffic light
-                if (this.x <= stopLines.horizontal.incoming && light.isRed) {
+                if (light.isRed && this.x <= stopLines.horizontal.incoming - queueOffset) {
                     return true;
                 }
-                // Check vehicles ahead
                 return vehiclesAhead.some(v => 
                     v.x > this.x && 
-                    v.x - this.x < SAFE_DISTANCE
+                    v.x - this.x < VEHICLE_LENGTH + QUEUE_GAP
                 );
             } else {
-                // Similar logic for outgoing
-                if (this.x >= stopLines.horizontal.outgoing && light.isRed) {
+                if (light.isRed && this.x >= stopLines.horizontal.outgoing + queueOffset) {
                     return true;
                 }
                 return vehiclesAhead.some(v => 
                     v.x < this.x && 
-                    this.x - v.x < SAFE_DISTANCE
+                    this.x - v.x < VEHICLE_LENGTH + QUEUE_GAP
                 );
             }
         } else {
             if (this.lane === "incoming") {
-                if (this.y <= stopLines.vertical.incoming && light.isRed) {
+                if (light.isRed && this.y <= stopLines.vertical.incoming - queueOffset) {
                     return true;
                 }
                 return vehiclesAhead.some(v => 
                     v.y > this.y && 
-                    v.y - this.y < SAFE_DISTANCE
+                    v.y - this.y < VEHICLE_LENGTH + QUEUE_GAP
                 );
             } else {
-                if (this.y >= stopLines.vertical.outgoing && light.isRed) {
+                if (light.isRed && this.y >= stopLines.vertical.outgoing + queueOffset) {
                     return true;
                 }
                 return vehiclesAhead.some(v => 
                     v.y < this.y && 
-                    this.y - v.y < SAFE_DISTANCE
+                    this.y - v.y < VEHICLE_LENGTH + QUEUE_GAP
                 );
             }
         }
-        return false;
     }
 
     getRelevantTrafficLight() {
