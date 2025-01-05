@@ -83,7 +83,7 @@ class Vehicle {
         if (this.direction === "horizontal") {
             if (this.lane === "incoming") {
                 // Check traffic light
-                if (this.x >= stopLines.horizontal.incoming && light.isRed) {
+                if (this.x <= stopLines.horizontal.incoming && light.isRed) {
                     return true;
                 }
                 // Check vehicles ahead
@@ -93,7 +93,7 @@ class Vehicle {
                 );
             } else {
                 // Similar logic for outgoing
-                if (this.x <= stopLines.horizontal.outgoing && light.isRed) {
+                if (this.x >= stopLines.horizontal.outgoing && light.isRed) {
                     return true;
                 }
                 return vehiclesAhead.some(v => 
@@ -103,7 +103,7 @@ class Vehicle {
             }
         } else {
             if (this.lane === "incoming") {
-                if (this.y >= stopLines.vertical.incoming && light.isRed) {
+                if (this.y <= stopLines.vertical.incoming && light.isRed) {
                     return true;
                 }
                 return vehiclesAhead.some(v => 
@@ -111,7 +111,7 @@ class Vehicle {
                     v.y - this.y < SAFE_DISTANCE
                 );
             } else {
-                if (this.y <= stopLines.vertical.outgoing && light.isRed) {
+                if (this.y >= stopLines.vertical.outgoing && light.isRed) {
                     return true;
                 }
                 return vehiclesAhead.some(v => 
