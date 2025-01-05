@@ -11,7 +11,7 @@ const intersectionY = (HEIGHT - intersectionSize) / 2;
 const SAFE_DISTANCE = 50;
 
 const VEHICLE_LENGTH = 40;
-const QUEUE_GAP = 5;
+const QUEUE_GAP = 10;
 
 const stopLines = {
     horizontal: {
