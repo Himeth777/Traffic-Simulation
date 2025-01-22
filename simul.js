@@ -434,9 +434,37 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
+async function updateTrafficTiming() {
+    try {
+        const response = await fetch('http://localhost:5000/optimize', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ counters: vehicleCounters })
+        });
+        
+        const data = await response.json();
+        return data.timing;
+    } catch (error) {
+        console.error('Error getting ML prediction:', error);
+        return 10000; // Default timing
+    }
+}
+
+// Replace your existing traffic light timer with:
+async function adaptiveTrafficLoop() {
+    const timing = await updateTrafficTiming();
+    toggleTrafficLights();
+    setTimeout(adaptiveTrafficLoop, timing);
+}
+
+// Start the adaptive control
+
+
 // Start simulation
 
 animate();
 setTimeout(() => {
-    initializeTrafficLights();
+    adaptiveTrafficLoop();
 }, 1000); 
