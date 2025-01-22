@@ -427,7 +427,7 @@ function animate() {
             vehicle.y < -100 || vehicle.y > HEIGHT + 100) {
 
             //vehicleCounters[vehicle.direction][vehicle.lane]++;
-            vehicles.splice(index, 1);
+            vehicles.splice(i, 1);
         }
     }
 
