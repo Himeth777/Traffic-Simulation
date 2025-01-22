@@ -13,6 +13,18 @@ const SAFE_DISTANCE = 50;
 const VEHICLE_LENGTH = 40;
 const QUEUE_GAP = 10;
 
+// Vehicle Counters for each lane
+const vehicleCounters = {
+    horizontal: {
+        incoming: 0,
+        outgoing: 0
+    },
+    vertical: {
+        incoming: 0,
+        outgoing: 0
+    }
+};
+
 const stopLines = {
     horizontal: {
         incoming: intersectionX - 60,
@@ -306,6 +318,34 @@ function drawJunction() {
 
 }
 
+// Function to display vehicle counters on the canvas
+function drawVehicleCounters() {
+    ctx.fillStyle = "black";
+    ctx.font = "16px Arial";
+    let yOffset = 20;
+
+    for (let direction in vehicleCounters) {
+        for (let lane in vehicleCounters[direction]) {
+            const text = `${direction.charAt(0).toUpperCase() + direction.slice(1)} ${lane.charAt(0).toUpperCase() + lane.slice(1)}: ${vehicleCounters[direction][lane]}`;
+            ctx.fillText(text, 10, yOffset);
+            yOffset += 20;
+        }
+    }
+}
+
+function updateVehicleCounters() {
+    // Reset counters
+    for (let direction in vehicleCounters) {
+        for (let lane in vehicleCounters[direction]) {
+            vehicleCounters[direction][lane] = 0;
+        }
+    }
+    // Count active vehicles
+    vehicles.forEach(vehicle => {
+        vehicleCounters[vehicle.direction][vehicle.lane]++;
+    });
+}
+
 // Add activeLight tracker
 let activeLight = 1; // Start with light 1 being active (green)
 
@@ -359,22 +399,37 @@ setInterval(() => {
     vehicles.push(createRandomVehicle());
 }, 10000); // 10 seconds
 
+// Reset vehicle counters every 30 seconds
+setInterval(() => {
+    for (let direction in vehicleCounters) {
+        for (let lane in vehicleCounters[direction]) {
+            vehicleCounters[direction][lane] = 0;
+        }
+    }
+    console.log('Vehicle counters have been reset.');
+}, 30000); // 30000 milliseconds = 30 seconds
+
 // Update animate function
 function animate() {
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
     drawJunction();
+    updateVehicleCounters();
+    drawVehicleCounters();
     
     // Update and draw vehicles
-    vehicles.forEach((vehicle, index) => {
+    for (let i = vehicles.length - 1; i >= 0; i--) {
+        const vehicle = vehicles[i];
         vehicle.move();
         vehicle.draw();
         
         // Optional: Remove vehicles that are too far off screen
         if (vehicle.x < -100 || vehicle.x > WIDTH + 100 || 
             vehicle.y < -100 || vehicle.y > HEIGHT + 100) {
+
+            //vehicleCounters[vehicle.direction][vehicle.lane]++;
             vehicles.splice(index, 1);
         }
-    });
+    }
 
     requestAnimationFrame(animate);
 }
