@@ -4,7 +4,7 @@ from flask_cors import CORS  # Import CORS
 import pickle
 
 app = Flask(__name__)
-CORS(app, resources={r"/optimize": {"origins": "http://localhost:5500"}}) # Enable CORS for all routes
+CORS(app, resources={r"/optimize": {"origins": ["http://localhost:5500", "http://127.0.0.1:5500"]}}) # Enable CORS for all routes
 
 class TrafficLightOptimizer:
     def __init__(self):
@@ -51,7 +51,7 @@ def optimize_timing():
     
     state = optimizer.get_state(counters)
     
-    total_queued = sum(sum(lane.values()) for lane in counters.values())
+    total_queued = sum(counters[direction][lane] for direction in counters for lane in counters[direction])
     reward = -total_queued
     
     optimal_timing = optimizer.get_action(state)
