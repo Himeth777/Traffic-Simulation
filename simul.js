@@ -1,3 +1,5 @@
+const optimizer = new TrafficOptimizer();
+
 // Ensure canvas setup
 const canvas = document.getElementById("junctionCanvas");
 const ctx = canvas.getContext("2d");
@@ -227,11 +229,11 @@ const vehicles = [
 ];
 
 
-const trafficLights = [
-    { id: 1, x: intersectionX, y: intersectionY + 80, isRed: true, toggleInterval: 2000 },
-    { id: 2, x: intersectionX + 40, y: intersectionY - 20, isRed: true, toggleInterval: 2000 },
-    { id: 3, x: intersectionX + 80, y: intersectionY + 40, isRed: true, toggleInterval: 2000 },
-    { id: 4, x: intersectionX - 20, y: intersectionY, isRed: true, toggleInterval: 2000 }
+trafficLights = [
+    { id: 1, x: intersectionX, y: intersectionY + 80, isRed: true, duration: 2000 },
+    { id: 2, x: intersectionX + 40, y: intersectionY - 20, isRed: true, duration: 2000 },
+    { id: 3, x: intersectionX + 80, y: intersectionY + 40, isRed: true, duration: 2000 },
+    { id: 4, x: intersectionX - 20, y: intersectionY, isRed: true, duration: 2000 }
 ];
 
 
@@ -434,37 +436,33 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
-async function updateTrafficTiming() {
-    try {
-        const response = await fetch('http://localhost:5000/optimize', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ counters: vehicleCounters })
-        });
-        
-        const data = await response.json();
-        return data.timing;
-    } catch (error) {
-        console.error('Error getting ML prediction:', error);
-        return 10000; // Default timing
-    }
+// Replace traffic light control
+async function updateTrafficLights() {
+    const state = optimizer.getState(vehicleCounters);
+    
+    const rewards = {
+        light1: -vehicleCounters.horizontal.incoming,
+        light2: -vehicleCounters.horizontal.outgoing,
+        light3: -vehicleCounters.vertical.incoming,
+        light4: -vehicleCounters.vertical.outgoing
+    };
+    
+    const timings = optimizer.selectAction(state);
+    
+    // Update traffic lights with new timings
+    trafficLights.forEach((light, index) => {
+        const timing = timings[`light${index + 1}`];
+        light.duration = timing;
+    });
+    
+    const nextState = optimizer.getState(vehicleCounters);
+    optimizer.update(state, timings, rewards, nextState);
 }
-
-// Replace your existing traffic light timer with:
-async function adaptiveTrafficLoop() {
-    const timing = await updateTrafficTiming();
-    toggleTrafficLights();
-    setTimeout(adaptiveTrafficLoop, timing);
-}
-
-// Start the adaptive control
 
 
 // Start simulation
-
+setInterval(updateTrafficLights, 10000);
 animate();
-setTimeout(() => {
-    adaptiveTrafficLoop();
-}, 1000); 
+// setTimeout(() => {
+//     adaptiveTrafficLoop();
+// }, 1000); 
