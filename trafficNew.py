@@ -63,11 +63,12 @@ class QLearningAgent:
         self.n_lanes = n_lanes
         self.max_duration = max_duration
         self.min_duration = 10  # Minimum green light duration
-        self.q_table = defaultdict(lambda: np.zeros((n_lanes, max_duration - self.min_duration + 1)))  # Adjust Q-table size
+        # Change Q-table structure to be more intuitive
+        self.q_table = defaultdict(lambda: np.zeros((n_lanes, max_duration - self.min_duration + 1)))
         self.lr = learning_rate
         self.gamma = discount_factor
-        self.epsilon = 0.9  # Start with higher exploration rate
-        self.state_visits = defaultdict(int)  # Track visits to each state
+        self.epsilon = 0.9
+        self.state_visits = defaultdict(int)
 
     def get_action(self, state, episode, max_episodes):
         self.epsilon = 0.1 + (0.9 - 0.1) * np.exp(-episode / (max_episodes / 10))
@@ -98,7 +99,7 @@ env = TrafficJunction()
 n_lanes = 4
 max_duration = 40  # Maximum green light duration
 agent = QLearningAgent(n_lanes=n_lanes, max_duration=max_duration)
-episodes = 4000
+episodes = 2000
 steps_per_episode = 1000
 max_episodes = episodes
 
@@ -137,29 +138,23 @@ for episode in range(episodes):
 
 def control_traffic(vehicle_counts):
     """
-    Returns a recommended duration for each of the 4 lanes,
-    rather than a single (lane, duration) pair.
+    Returns a recommended duration for each of the 4 lanes.
     """
     # Convert vehicle counts to discrete state representation
-    state = tuple(min(4, v // 5) for v in vehicle_counts)  # Example bucketing
+    state = tuple(min(4, v // 5) for v in vehicle_counts)
     
-    # Retrieve all Q-values for this state (length = n_lanes * max_duration)
-    q_values = agent.q_table[state]
+    # Get Q-values for this state
+    q_values = agent.q_table[state]  # This is now a (n_lanes, max_duration-min_duration+1) array
     
     recommended_durations = []
     for lane_idx in range(n_lanes):
-        # Each lane has a contiguous slice of size max_duration
-        start = lane_idx * max_duration
-        end = start + max_duration
-        
-        # Argmax within this lane's slice
-        best_duration_idx = np.argmax(q_values[start:end])
-        
-        # best_duration_idx corresponds to a discrete step from 0..(max_duration-1).
-        # You may need to map index -> actual duration in seconds.
-        recommended_durations.append(best_duration_idx)
+        # Get the best duration index for this lane
+        best_duration_idx = np.argmax(q_values[lane_idx])
+        # Convert index to actual duration
+        recommended_duration = best_duration_idx + agent.min_duration
+        recommended_durations.append(recommended_duration)
     
-    return recommended_durations
+    return list(map(int, recommended_durations))
 
 # Example usage
 test_scenario = np.array([10, 5, 15, 8])
