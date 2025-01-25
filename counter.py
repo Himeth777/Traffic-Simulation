@@ -160,21 +160,26 @@ def process_video_path(video_path, output_path, counts_dict):
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     counter.detection_line_y = int(frame_height * counter.detection_line_position)
     counter.min_contour_area = (frame_width * frame_height) // 400
-    
+
+    writer = None
+    if output_path:
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        writer = cv2.VideoWriter(output_path, fourcc, cap.get(cv2.CAP_PROP_FPS), (frame_width, frame_height))
+
     while True:
         ret, frame = cap.read()
         if not ret:
             break
         result_frame = counter.process_frame(frame)
-        if output_path:
-            # ...existing code...
-            pass
-        cv2.imshow(f'Process - {video_path}', result_frame)
+        if writer:
+            writer.write(result_frame)
         counts_dict[video_path] = counter.vehicle_count
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        # Removed cv2.imshow and cv2.waitKey to prevent blocking
+
     cap.release()
-    cv2.destroyAllWindows()
+    if writer:
+        writer.release()
+    # Removed cv2.destroyAllWindows()
 
 def main():
     # Create an instance of VehicleCounter
