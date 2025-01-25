@@ -4,7 +4,7 @@ from collections import defaultdict
 import time
 import os
 import multiprocessing
-from multiprocessing import Manager, Pool
+from multiprocessing import Manager, Process
 
 class VehicleCounter:
     def __init__(self, detection_line_position=0.5):
@@ -154,6 +154,13 @@ class VehicleCounter:
 def process_video_path(video_path, output_path, counts_dict):
     counter = VehicleCounter(detection_line_position=0.6)
     cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    counter.detection_line_y = int(frame_height * counter.detection_line_position)
+    counter.min_contour_area = (frame_width * frame_height) // 400
+    
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -194,30 +201,28 @@ def main():
     
     manager = Manager()
     counts_dict = manager.dict()
-    pool = Pool()
     processes = []
     for idx, video_path in enumerate(video_paths):
         output_path = output_paths[idx] if output_paths else None
-        proc = pool.apply_async(process_video_path, args=(video_path, output_path, counts_dict))
-        processes.append(proc)
-
+        p = Process(target=process_video_path, args=(video_path, output_path, counts_dict))
+        p.start()
+        processes.append(p)
+    
+    # Continually check counts while processes are alive
     try:
-        while True:
-            # Print updated counts
+        while any(p.is_alive() for p in processes):
             print("\rCurrent vehicle counts:", dict(counts_dict), end="")
-            if any(not p._job for p in processes):
-                break
             time.sleep(1)
     except KeyboardInterrupt:
         pass
-
-    pool.close()
-    pool.join()
+    
+    for p in processes:
+        p.join()
 
     for video_path, count in counts_dict.items():
         vehicle_counts[video_path] = count
         print(f"Total vehicles counted in {video_path}: {count}")
-
+    
     # Print summary
     print("\nVehicle Counts Summary:")
     for video, count in vehicle_counts.items():
