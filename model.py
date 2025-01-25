@@ -1,6 +1,10 @@
 import numpy as np
 from collections import defaultdict
 import random
+import pickle
+
+def initialize_q_table(n_lanes, max_duration, min_duration):
+    return np.zeros((n_lanes, max_duration - min_duration + 1))
 
 class TrafficJunction:
     def __init__(self):
@@ -63,13 +67,17 @@ class QLearningAgent:
         self.n_lanes = n_lanes
         self.max_duration = max_duration
         self.min_duration = 10  # Minimum green light duration
-        # Change Q-table structure to be more intuitive
-        self.q_table = defaultdict(lambda: np.zeros((n_lanes, max_duration - self.min_duration + 1)))
+        self.q_table = dict()  # Replace defaultdict with regular dict
         self.lr = learning_rate
         self.gamma = discount_factor
         self.epsilon = 0.9
         self.state_visits = defaultdict(int)
-
+    
+    def get_q_values(self, state):
+        if state not in self.q_table:
+            self.q_table[state] = initialize_q_table(self.n_lanes, self.max_duration, self.min_duration)
+        return self.q_table[state]
+    
     def get_action(self, state, episode, max_episodes):
         self.epsilon = 0.1 + (0.9 - 0.1) * np.exp(-episode / (max_episodes / 10))
         if random.random() < self.epsilon:
@@ -78,19 +86,21 @@ class QLearningAgent:
             duration = random.randint(self.min_duration, self.max_duration)
         else:
             # Exploit: Choose the best lane and duration
+            q_values = self.get_q_values(state)
             best_action = np.unravel_index(
-                np.argmax(self.q_table[state]), (self.n_lanes, self.max_duration - self.min_duration + 1)
+                np.argmax(q_values), (self.n_lanes, self.max_duration - self.min_duration + 1)
             )
             lane, duration_index = best_action
             duration = duration_index + self.min_duration  # Map index back to duration
         return lane, duration
-
+    
     def learn(self, state, action, reward, next_state):
         lane, duration = action
         duration_index = duration - self.min_duration  # Map duration to index
-        max_future_q = np.max(self.q_table[next_state])  # Max Q-value for the next state
+        current_q = self.get_q_values(state)[lane][duration_index]
+        max_future_q = np.max(self.get_q_values(next_state))  # Max Q-value for the next state
         td_target = reward + self.gamma * max_future_q
-        td_error = td_target - self.q_table[state][lane][duration_index]
+        td_error = td_target - current_q
         self.q_table[state][lane][duration_index] += self.lr * td_error
 
 
@@ -103,40 +113,57 @@ episodes = 2000
 steps_per_episode = 1000
 max_episodes = episodes
 
-# Track visited states for coverage
-all_possible_states = {(a, b, c, d) for a in range(5) for b in range(5) for c in range(5) for d in range(5)}
-visited_states = set()
+def train_agent():
+    """
+    Runs Q-learning episodes, tracks coverage, and saves the Q-table upon completion.
+    Make sure 'agent', 'env', 'visited_states', 'episodes', 'steps_per_episode',
+    and 'max_episodes' are defined globally or adjust them as parameters here.
+    """
+    global agent, env, visited_states, episodes, steps_per_episode, max_episodes
 
-for episode in range(episodes):
-    state = env.reset()
-    total_reward = 0
-    
-    for step in range(steps_per_episode):
-        # Add the current state to visited_states
-        visited_states.add(state)
-        agent.state_visits[state] += 1  # Update visit count
-        
-        # Get action with ε-greedy policy
-        action = agent.get_action(state, episode, max_episodes)
-        
-        next_state, reward = env.step(action)
-        agent.learn(state, action, reward, next_state)
-        
-        state = next_state
-        total_reward += reward
-    
-    # Monitor progress
-    if episode % 100 == 0:
-        coverage = len(visited_states) / 625 * 100
-        print(f"Episode {episode}, Total Reward: {total_reward}")
-        print(f"Visited States: {len(visited_states)}/625 ({coverage:.2f}% coverage)")
-    
-    # Stop early if 100% coverage is achieved
-    if len(visited_states) == 625:
-        print(f"Achieved 100% state coverage by episode {episode}")
-        break
+    visited_states = set()  # Track which states have been seen
 
-def control_traffic(vehicle_counts):
+    for episode in range(episodes):
+        state = env.reset()
+        total_reward = 0
+
+        for _ in range(steps_per_episode):
+            # Record the current state
+            visited_states.add(state)
+
+            # Increment visit count (if your agent tracks visits)
+            agent.state_visits[state] += 1
+
+            # Epsilon-greedy action selection
+            action = agent.get_action(state, episode, max_episodes)
+
+            # Environment transition
+            next_state, reward = env.step(action)
+
+            # Q-learning update
+            agent.learn(state, action, reward, next_state)
+
+            # Move on to next step
+            state = next_state
+            total_reward += reward
+
+        # Periodic reporting
+        if episode % 100 == 0:
+            coverage = len(visited_states) / 625 * 100  # 625 = 5×5×5×5 if states are (0..4)^4
+            print(f"Episode {episode}, Total Reward: {total_reward}")
+            print(f"Visited States: {len(visited_states)}/625 ({coverage:.2f}% coverage)")
+
+        # Early stop if all states have been covered
+        if len(visited_states) == 625:
+            print(f"Achieved 100% state coverage by episode {episode}")
+            break
+
+    # Save Q-table to file
+    with open("tables/q_table.pkl", "wb") as f:
+        pickle.dump(agent.q_table, f)
+    print("Q-table saved to tables/q_table.pkl")
+
+def control_traffic(vehicle_counts, agent):
     """
     Returns a recommended duration for each of the 4 lanes.
     """
@@ -144,10 +171,13 @@ def control_traffic(vehicle_counts):
     state = tuple(min(4, v // 5) for v in vehicle_counts)
     
     # Get Q-values for this state
-    q_values = agent.q_table[state]  # This is now a (n_lanes, max_duration-min_duration+1) array
+    q_values = agent.q_table.get(state)
+    if q_values is None:
+        q_values = initialize_q_table(agent.n_lanes, agent.max_duration, agent.min_duration)
+        agent.q_table[state] = q_values
     
     recommended_durations = []
-    for lane_idx in range(n_lanes):
+    for lane_idx in range(agent.n_lanes):
         # Get the best duration index for this lane
         best_duration_idx = np.argmax(q_values[lane_idx])
         # Convert index to actual duration
@@ -156,8 +186,11 @@ def control_traffic(vehicle_counts):
     
     return list(map(int, recommended_durations))
 
+if __name__ == "__main__":
+    train_agent()
+
 # Example usage
-test_scenario = np.array([10, 5, 15, 8])
-lane_durations = control_traffic(test_scenario)
-print(f"Test Scenario - Vehicles in lanes: {test_scenario}")
-print("Recommended durations for each lane:", lane_durations)
+# test_scenario = np.array([10, 5, 15, 8])
+# lane_durations = control_traffic(test_scenario)
+# print(f"Test Scenario - Vehicles in lanes: {test_scenario}")
+# print("Recommended durations for each lane:", lane_durations)
