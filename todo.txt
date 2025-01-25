@@ -1,3 +1,6 @@
+Break the video1 into 4 parts and implement them as 4 lane footages
+
+
 Get the inputs to the output.py from lochi's counter.py
 Adjust the simul.js so that it will prove that an individual scenario is correct.
 Try to get an output for the traffic density from the model and incorporate it into the simul.js
