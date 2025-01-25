@@ -154,10 +154,10 @@ def main():
     counter = VehicleCounter(detection_line_position=0.6)  # Line at 60% from top of frame
     
     # Path to your video file
-    video_path = "videos/path_to_your_video.mp4"
+    video_path = "videos/video1.mp4"
     
     # Optional: Path for output video
-    output_path = "videos/output_counted_video.mp4"
+    output_path = "videos/outputVideo1.mp4"
     
     # Process the video
     counter.process_video(video_path, output_path)
