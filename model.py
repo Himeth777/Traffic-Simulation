@@ -189,8 +189,4 @@ def control_traffic(vehicle_counts, agent):
 if __name__ == "__main__":
     train_agent()
 
-# Example usage
-# test_scenario = np.array([10, 5, 15, 8])
-# lane_durations = control_traffic(test_scenario)
-# print(f"Test Scenario - Vehicles in lanes: {test_scenario}")
-# print("Recommended durations for each lane:", lane_durations)
+
