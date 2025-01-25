@@ -3,6 +3,8 @@ import numpy as np
 from collections import defaultdict
 import time
 import os
+import multiprocessing
+from multiprocessing import Manager, Pool
 
 class VehicleCounter:
     def __init__(self, detection_line_position=0.5):
@@ -149,18 +151,77 @@ class VehicleCounter:
         
         return result_frame
 
+def process_video_path(video_path, output_path, counts_dict):
+    counter = VehicleCounter(detection_line_position=0.6)
+    cap = cv2.VideoCapture(video_path)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        result_frame = counter.process_frame(frame)
+        if output_path:
+            # ...existing code...
+            pass
+        cv2.imshow(f'Process - {video_path}', result_frame)
+        counts_dict[video_path] = counter.vehicle_count
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    cap.release()
+    cv2.destroyAllWindows()
+
 def main():
     # Create an instance of VehicleCounter
     counter = VehicleCounter(detection_line_position=0.6)  # Line at 60% from top of frame
     
-    # Path to your video file
-    video_path = "videos/video1.mp4"
+    # List of paths to your video files
+    video_paths = [
+        "videos/video1.mp4",
+        "videos/video2.mp4",
+        "videos/video3.mp4",
+        "videos/video4.mp4"
+    ]
     
-    # Optional: Path for output video
-    output_path = "videos/outputVideo1.mp4"
+    # Optional: Corresponding output paths for each video
+    output_paths = [
+        "videos/outputVideo1.mp4",
+        "videos/outputVideo2.mp4",
+        "videos/outputVideo3.mp4",
+        "videos/outputVideo4.mp4"
+    ]
     
-    # Process the video
-    counter.process_video(video_path, output_path)
+    # Dictionary to store vehicle counts for each video
+    vehicle_counts = {}
+    
+    manager = Manager()
+    counts_dict = manager.dict()
+    pool = Pool()
+    processes = []
+    for idx, video_path in enumerate(video_paths):
+        output_path = output_paths[idx] if output_paths else None
+        proc = pool.apply_async(process_video_path, args=(video_path, output_path, counts_dict))
+        processes.append(proc)
 
+    try:
+        while True:
+            # Print updated counts
+            print("\rCurrent vehicle counts:", dict(counts_dict), end="")
+            if any(not p._job for p in processes):
+                break
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+
+    pool.close()
+    pool.join()
+
+    for video_path, count in counts_dict.items():
+        vehicle_counts[video_path] = count
+        print(f"Total vehicles counted in {video_path}: {count}")
+
+    # Print summary
+    print("\nVehicle Counts Summary:")
+    for video, count in vehicle_counts.items():
+        print(f"{video}: {count} vehicles")
+    
 if __name__ == "__main__":
     main()
