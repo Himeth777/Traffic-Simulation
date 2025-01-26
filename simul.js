@@ -228,10 +228,10 @@ const vehicles = [
 
 
 const trafficLights = [
-    { id: 1, x: intersectionX, y: intersectionY + 80, isRed: true, toggleInterval: 2000 },
-    { id: 2, x: intersectionX + 40, y: intersectionY - 20, isRed: true, toggleInterval: 2000 },
-    { id: 3, x: intersectionX + 80, y: intersectionY + 40, isRed: true, toggleInterval: 2000 },
-    { id: 4, x: intersectionX - 20, y: intersectionY, isRed: true, toggleInterval: 2000 }
+    { id: 1, x: intersectionX, y: intersectionY + 80, isRed: true, toggleInterval: 10000 },
+    { id: 2, x: intersectionX + 40, y: intersectionY - 20, isRed: true, toggleInterval: 10000 },
+    { id: 3, x: intersectionX + 80, y: intersectionY + 40, isRed: true, toggleInterval:10000 },
+    { id: 4, x: intersectionX - 20, y: intersectionY, isRed: true, toggleInterval: 10000 }
 ];
 
 
@@ -360,6 +360,10 @@ function toggleTrafficLights() {
     const currentLight = trafficLights.find(light => light.id === activeLight);
     if (currentLight) {
         currentLight.isRed = false;
+        // Set timer for the next toggle based on greenLightDurations
+        const direction = currentLight.id === 1 || currentLight.id === 3 ? "horizontal" : "vertical";
+        const lane = currentLight.id === 1 || currentLight.id === 2 ? "outgoing" : "incoming";
+        setTimeout(toggleTrafficLights, greenLightDurations[direction][lane]);
     }
     
     // Move to next light
@@ -380,8 +384,63 @@ function initializeTrafficLights() {
 // Remove individual light intervals, keep animation loop as is
 // ...existing code...
 
+// Configuration Parameters
+const initialVehicleCounts = {
+    horizontal: {
+        incoming: 30, // Number of incoming horizontal vehicles
+        outgoing: 32  // Number of outgoing horizontal vehicles
+    },
+    vertical: {
+        incoming: 31, // Number of incoming vertical vehicles
+        outgoing: 24  // Number of outgoing vertical vehicles
+    }
+};
 
+const greenLightDurations = {
+    horizontal: {
+        incoming: 10000, // Duration in milliseconds
+        outgoing: 10000
+    },
+    vertical: {
+        incoming: 10000,
+        outgoing: 10000
+    }
+};
 
+// Remove automatic vehicle spawning
+// setInterval(() => {
+//     vehicles.push(createRandomVehicle());
+// }, 10000); // 10 seconds
+
+// Initialize vehicles based on initialVehicleCounts
+function initializeVehicles() {
+    for (let direction in initialVehicleCounts) {
+        for (let lane in initialVehicleCounts[direction]) {
+            for (let i = 0; i < initialVehicleCounts[direction][lane]; i++) {
+                const vehicle = createRandomVehicle(direction, lane);
+                vehicles.push(vehicle);
+            }
+        }
+    }
+}
+
+// Modify createRandomVehicle to accept direction and lane
+function createRandomVehicle(direction, lane) {
+    const sublane = Math.floor(Math.random() * 2); // Choose between two lanes
+    const speed = 2;
+    const color = vehicleColors[Math.floor(Math.random() * vehicleColors.length)];
+
+    const spawn = spawnPoints[direction][lane][sublane];
+    return new Vehicle(spawn.x, spawn.y, direction, speed, lane, color);
+}
+
+// Initialize vehicles and start traffic light cycle
+function initializeSimulation() {
+    initializeVehicles();
+    toggleTrafficLights();
+}
+
+initializeSimulation();
 
 function createRandomVehicle() {
     const direction = Math.random() < 0.5 ? "horizontal" : "vertical";
@@ -393,11 +452,6 @@ function createRandomVehicle() {
     const spawn = spawnPoints[direction][lane][sublane];
     return new Vehicle(spawn.x, spawn.y, direction, speed, lane, color);
 }
-
-// Initialize vehicle spawn
-setInterval(() => {
-    vehicles.push(createRandomVehicle());
-}, 10000); // 10 seconds
 
 // Reset vehicle counters every 30 seconds
 setInterval(() => {
@@ -439,4 +493,4 @@ function animate() {
 animate();
 setTimeout(() => {
     initializeTrafficLights();
-}, 1000); 
+}, 1000);
