@@ -1,4 +1,3 @@
 
-Get the inputs to the output.py from counter.py - (can use a txt or csv file)
-Adjust the simul.js so that it will prove that an individual scenario is correct.
-Try to get an output for the traffic density from the model and incorporate it into the simul.js
+Get an output from detect.py in the form of an array and feed it to output.py
+Build the script to streamline the process

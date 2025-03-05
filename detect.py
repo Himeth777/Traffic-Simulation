@@ -9,6 +9,8 @@ import torch
 import numpy as np
 from tqdm import tqdm
 import concurrent.futures
+import json
+from collections import defaultdict
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # Root directory
@@ -16,7 +18,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # Add ROOT to PATH
 
 # Constants for vehicle detection
-CONF_THRES = 0.25  # Confidence threshold
+CONF_THRES = 0.4  # Confidence threshold
 IOU_THRES = 0.45  # NMS IoU threshold
 VEHICLE_CLASSES = [
     2,
@@ -28,7 +30,7 @@ CLASS_NAMES = {2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
 
 # Add new constants for tracking
 MAX_TRACKING_DISTANCE = 100  # Maximum pixel distance for tracking association
-MIN_DETECTION_CONFIDENCE = 0.4  # Minimum confidence for counting
+MIN_DETECTION_CONFIDENCE = 0.5  # Minimum confidence for counting
 DETECTION_ZONE_HEIGHT = 0.1  # Height of detection zone as fraction of frame height
 
 
@@ -622,6 +624,32 @@ def process_single_video(args):
         print(f"Error processing {video_path}: {e}")
         return video_path, 0, {}
 
+def save_detection_results(results, output_file="detection_results.json"):
+    """Save detection results to file"""
+    # Create results directory if it doesn't exist
+    os.makedirs("results", exist_ok=True)
+    
+    # Process results into the required format
+    processed_results = {}
+    for video_path, data in results.items():
+        # Get directional counts from class_counts
+        lane_counts = defaultdict(int)
+        for zone in data.get('zones', []):
+            if zone['direction'] == 'up':
+                lane_counts['vertical_incoming'] += zone['count']
+            else:  # down
+                lane_counts['vertical_outgoing'] += zone['count']
+                
+        processed_results[video_path] = {
+            'total_count': data['count'],
+            'lanes': dict(lane_counts),
+            'class_breakdown': data['classes']
+        }
+    
+    # Save to file
+    with open(os.path.join("results", output_file), 'w') as f:
+        json.dump(processed_results, f, indent=2)
+
 def process_videos(video_paths, output_dir=None, show_video=True):
     """Process multiple videos in parallel using concurrent.futures"""
     # Don't preload the model in the main process
@@ -689,6 +717,9 @@ def process_videos(video_paths, output_dir=None, show_video=True):
     for cls, count in total_by_class.items():
         print(f"  {cls}: {count}")
 
+    # Save detection results
+    save_detection_results(results)
+    
     return results
 
 

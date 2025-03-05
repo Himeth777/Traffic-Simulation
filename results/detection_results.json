@@ -1,0 +1,42 @@
+{
+  "/Users/himeth/Documents/Engineering/sem 4/Software engineering/Traffic Simulation/videos/video2.mp4": {
+    "total_count": 82,
+    "lanes": {},
+    "class_breakdown": {
+      "car": 70,
+      "motorcycle": 0,
+      "bus": 3,
+      "truck": 9
+    }
+  },
+  "/Users/himeth/Documents/Engineering/sem 4/Software engineering/Traffic Simulation/videos/video4.mp4": {
+    "total_count": 69,
+    "lanes": {},
+    "class_breakdown": {
+      "car": 62,
+      "motorcycle": 0,
+      "bus": 2,
+      "truck": 5
+    }
+  },
+  "/Users/himeth/Documents/Engineering/sem 4/Software engineering/Traffic Simulation/videos/video1.mp4": {
+    "total_count": 86,
+    "lanes": {},
+    "class_breakdown": {
+      "car": 73,
+      "motorcycle": 0,
+      "bus": 3,
+      "truck": 10
+    }
+  },
+  "/Users/himeth/Documents/Engineering/sem 4/Software engineering/Traffic Simulation/videos/video3.mp4": {
+    "total_count": 64,
+    "lanes": {},
+    "class_breakdown": {
+      "car": 47,
+      "motorcycle": 0,
+      "bus": 3,
+      "truck": 14
+    }
+  }
+}
