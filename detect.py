@@ -8,6 +8,7 @@ import cv2
 import torch
 import numpy as np
 from tqdm import tqdm
+import concurrent.futures
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # Root directory
@@ -597,25 +598,38 @@ def detect_and_track_vehicles(model, video_path, output_path=None, show_video=Tr
     return vehicle_count, class_counts
 
 
-def process_videos(video_paths, output_dir=None, show_video=True):
-    """Process multiple videos"""
-    # Download/load model
+def process_single_video(args):
+    """Process a single video - worker function for multiprocessing"""
+    video_path, output_path, show_video = args
+    
+    # Each process loads its own model
+    print(f"\nProcess {os.getpid()}: Loading model for {os.path.basename(video_path)}...")
     model = download_model()
+    
+    print(f"\nProcessing video: {os.path.basename(video_path)}")
+    try:
+        vehicle_count, class_counts = detect_and_track_vehicles(
+            model, video_path, output_path, show_video
+        )
+        return video_path, vehicle_count, class_counts
+    except Exception as e:
+        print(f"Error processing {video_path}: {e}")
+        return video_path, 0, {}
 
+def process_videos(video_paths, output_dir=None, show_video=False):
+    """Process multiple videos in parallel using concurrent.futures"""
+    # Don't preload the model in the main process
+    
     # Create output directory if needed
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
-    results = {}
-
-    # Process each video
+    # Prepare arguments for each video (without the model)
+    tasks = []
     for video_path in video_paths:
-        video_name = os.path.basename(video_path)
-        print(f"\nProcessing video: {video_name}")
-
         # Create output path if output directory is specified
         if output_dir:
-            # Use AVI format for better compatibility
+            video_name = os.path.basename(video_path)
             video_name_base = os.path.splitext(video_name)[0]
             output_path = os.path.join(output_dir, f"output_{video_name_base}.avi")
             counter = 1
@@ -626,20 +640,32 @@ def process_videos(video_paths, output_dir=None, show_video=True):
                 counter += 1
         else:
             output_path = None
+            
+        # Pass all parameters except model
+        tasks.append((video_path, output_path, show_video))
 
-        # Process video
-        vehicle_count, class_counts = detect_and_track_vehicles(
-            model, video_path, output_path, show_video
-        )
-
-        # Store results
-        results[video_path] = {"count": vehicle_count, "classes": class_counts}
+    # Process videos in parallel using ProcessPoolExecutor
+    results = {}
+    try:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=len(video_paths)) as executor:
+            futures = {executor.submit(process_single_video, task): task for task in tasks}
+            
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    video_path, vehicle_count, class_counts = future.result()
+                    results[video_path] = {"count": vehicle_count, "classes": class_counts}
+                except Exception as exc:
+                    print(f"Video processing generated an exception: {exc}")
+    except KeyboardInterrupt:
+        print("\nDetected keyboard interrupt. Stopping processing gracefully...")
+        # Let the finally block handle cleanup
 
     # Print summary of all videos
     print("\n===== SUMMARY OF ALL VIDEOS =====")
     total_count = 0
     total_by_class = {}
 
+    # ...existing code for summary printing...
     for video_path, data in results.items():
         video_name = os.path.basename(video_path)
         print(f"{video_name}: {data['count']} vehicles")
@@ -712,7 +738,7 @@ def main():
 
     # Process videos
     output_dir = os.path.join(ROOT, args.output)
-    process_videos(args.videos, output_dir, not args.no_display)
+    process_videos(args.videos, output_dir, not args.no_display and len(args.videos) == 1)
 
 
 if __name__ == "__main__":
