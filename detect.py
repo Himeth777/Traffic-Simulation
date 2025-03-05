@@ -328,6 +328,9 @@ def detect_and_track_vehicles(model, video_path, output_path=None, show_video=Tr
     # Flag to check if we should stop processing
     should_stop = False
 
+    # Create a unique window name based on video file name
+    window_name = f"Vehicle Detection - {os.path.basename(video_path)}"
+
     try:
         # Process video frames
         while cap.isOpened() and not should_stop:
@@ -542,9 +545,11 @@ def detect_and_track_vehicles(model, video_path, output_path=None, show_video=Tr
                         writer.release()
                         writer = None
 
-            # Display frame
+            # Display frame - always show if requested
             if show_video:
-                cv2.imshow("YOLOv5 Vehicle Detection", frame)
+                # Resize frame for display to make it smaller
+                display_frame = cv2.resize(frame, (int(width/2), int(height/2)))
+                cv2.imshow(window_name, display_frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):  # Press 'q' to quit
                     should_stop = True
@@ -580,7 +585,8 @@ def detect_and_track_vehicles(model, video_path, output_path=None, show_video=Tr
             else:
                 print(f"Warning: Output file was not created at {output_path}")
 
-        cv2.destroyAllWindows()
+        if show_video:
+            cv2.destroyWindow(window_name)
 
     # Print final results
     print(f"\n--- Results for {os.path.basename(video_path)} ---")
@@ -616,7 +622,7 @@ def process_single_video(args):
         print(f"Error processing {video_path}: {e}")
         return video_path, 0, {}
 
-def process_videos(video_paths, output_dir=None, show_video=False):
+def process_videos(video_paths, output_dir=None, show_video=True):
     """Process multiple videos in parallel using concurrent.futures"""
     # Don't preload the model in the main process
     
@@ -642,7 +648,8 @@ def process_videos(video_paths, output_dir=None, show_video=False):
             output_path = None
             
         # Pass all parameters except model
-        tasks.append((video_path, output_path, show_video))
+        # Always pass show_video=True to see the processing
+        tasks.append((video_path, output_path, True))
 
     # Process videos in parallel using ProcessPoolExecutor
     results = {}
@@ -703,6 +710,11 @@ def main():
         action="store_true",
         help="Disable video display during processing",
     )
+    parser.add_argument(
+        "--sequential",
+        action="store_true",
+        help="Process videos sequentially instead of in parallel",
+    )
 
     args = parser.parse_args()
 
@@ -720,26 +732,92 @@ def main():
             )
             return
 
-        default_videos = [
-            os.path.join(video_dir, "video1.mp4"),
-            os.path.join(video_dir, "video2.mp4"),
-            os.path.join(video_dir, "video3.mp4"),
-            os.path.join(video_dir, "video4.mp4"),
-        ]
+        # Find all video files in the directory
+        video_files = []
+        for file in os.listdir(video_dir):
+            lower_file = file.lower()
+            if lower_file.endswith(('.mp4', '.avi', '.mov')):
+                full_path = os.path.join(video_dir, file)
+                # Validate the video file can be opened
+                try:
+                    cap = cv2.VideoCapture(full_path)
+                    if cap.isOpened():
+                        video_files.append(full_path)
+                        cap.release()
+                        print(f"Found valid video: {file}")
+                    else:
+                        print(f"Warning: Could not open {file} as a video file")
+                except Exception as e:
+                    print(f"Error checking video file {file}: {e}")
 
-        # Filter to only existing videos
-        args.videos = [v for v in default_videos if os.path.exists(v)]
-
-        if not args.videos:
+        if not video_files:
             print(
-                "No video files found. Please place videos in the 'videos' directory."
+                "No valid video files found. Please place videos in the 'videos' directory."
             )
             return
-
+        
+        args.videos = sorted(video_files)
+    
+    # Verify all specified videos exist and can be opened
+    valid_videos = []
+    for video_path in args.videos:
+        if not os.path.exists(video_path):
+            print(f"Warning: Video file not found: {video_path}")
+            continue
+            
+        try:
+            cap = cv2.VideoCapture(video_path)
+            if cap.isOpened():
+                valid_videos.append(video_path)
+                cap.release()
+                print(f"Validated video: {os.path.basename(video_path)}")
+            else:
+                print(f"Warning: Could not open {video_path} as a video file")
+        except Exception as e:
+            print(f"Error validating {video_path}: {e}")
+    
+    if not valid_videos:
+        print("No valid videos to process.")
+        return
+        
+    print(f"\nProcessing {len(valid_videos)} video(s): {[os.path.basename(v) for v in valid_videos]}")
+    
     # Process videos
     output_dir = os.path.join(ROOT, args.output)
-    process_videos(args.videos, output_dir, not args.no_display and len(args.videos) == 1)
-
+    
+    # Add option to process sequentially if parallel processing fails
+    if args.sequential:
+        results = {}
+        model = download_model()
+        for video_path in valid_videos:
+            output_path = os.path.join(output_dir, f"output_{os.path.basename(video_path)}")
+            try:
+                print(f"\nProcessing {os.path.basename(video_path)} sequentially...")
+                vehicle_count, class_counts = detect_and_track_vehicles(
+                    model, video_path, output_path, not args.no_display
+                )
+                results[video_path] = {"count": vehicle_count, "classes": class_counts}
+            except Exception as e:
+                print(f"Error processing {video_path}: {e}")
+    else:
+        try:
+            results = process_videos(valid_videos, output_dir, not args.no_display)
+        except Exception as e:
+            print(f"Error in parallel processing: {e}")
+            print("Falling back to sequential processing...")
+            
+            results = {}
+            model = download_model()
+            for video_path in valid_videos:
+                output_path = os.path.join(output_dir, f"output_{os.path.basename(video_path)}")
+                try:
+                    print(f"\nProcessing {os.path.basename(video_path)} sequentially...")
+                    vehicle_count, class_counts = detect_and_track_vehicles(
+                        model, video_path, output_path, not args.no_display
+                    )
+                    results[video_path] = {"count": vehicle_count, "classes": class_counts}
+                except Exception as e:
+                    print(f"Error processing {video_path}: {e}")
 
 if __name__ == "__main__":
     main()

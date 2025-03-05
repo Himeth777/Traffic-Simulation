@@ -12,6 +12,6 @@ with open("tables/q_table.pkl", "rb") as f:
     agent.q_table = pickle.load(f)  # Now agent.q_table has the previously trained data
 
 # Now you can call control_traffic with the loaded agent
-test_scenario = np.array([30, 32, 31, 24])
+test_scenario = np.array([50, 17, 25, 35])
 lane_durations = control_traffic(test_scenario, agent)
 print("Loaded Q-table. Recommended durations for test_scenario:", lane_durations)

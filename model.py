@@ -2,6 +2,9 @@ import numpy as np
 from collections import defaultdict
 import random
 import pickle
+import json
+import csv
+import os
 
 def initialize_q_table(n_lanes, max_duration, min_duration):
     return np.zeros((n_lanes, max_duration - min_duration + 1))
@@ -9,7 +12,7 @@ def initialize_q_table(n_lanes, max_duration, min_duration):
 class TrafficJunction:
     def __init__(self):
         self.lanes = 4  # 4-way intersection
-        self.max_vehicles = 20  # Maximum vehicles per lane
+        self.max_vehicles = 100  # Maximum vehicles per lane
         self.min_duration = 10  # Minimum green light duration in seconds
         self.max_duration = 40  # Maximum green light duration in seconds
         self.reset()
@@ -113,6 +116,44 @@ episodes = 2000
 steps_per_episode = 1000
 max_episodes = episodes
 
+def save_q_table(q_table, base_path="tables"):
+    """Save Q-table in multiple formats: pickle, JSON, and CSV"""
+    # Create directory if it doesn't exist
+    os.makedirs(base_path, exist_ok=True)
+    
+    # Save as pickle
+    pickle_path = os.path.join(base_path, "q_table.pkl")
+    with open(pickle_path, "wb") as f:
+        pickle.dump(q_table, f)
+    print(f"Q-table saved as pickle: {pickle_path}")
+    
+    # Save as JSON
+    json_path = os.path.join(base_path, "q_table.json")
+    # Convert tuple keys to strings for JSON serialization
+    json_serializable = {}
+    for state, values in q_table.items():
+        json_serializable[str(state)] = values.tolist()
+    
+    with open(json_path, "w") as f:
+        json.dump(json_serializable, f, indent=2)
+    print(f"Q-table saved as JSON: {json_path}")
+    
+    # Save as CSV
+    csv_path = os.path.join(base_path, "q_table.csv")
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        # Write header
+        writer.writerow(["State", "Lane", "Duration", "Q-Value"])
+        
+        # Write data
+        for state, values in q_table.items():
+            for lane in range(values.shape[0]):
+                for duration_idx in range(values.shape[1]):
+                    duration = duration_idx + 10  # Assuming min_duration is 10
+                    q_value = values[lane][duration_idx]
+                    writer.writerow([str(state), lane, duration, q_value])
+    print(f"Q-table saved as CSV: {csv_path}")
+
 def train_agent():
     """
     Runs Q-learning episodes, tracks coverage, and saves the Q-table upon completion.
@@ -159,9 +200,7 @@ def train_agent():
             break
 
     # Save Q-table to file
-    with open("tables/q_table.pkl", "wb") as f:
-        pickle.dump(agent.q_table, f)
-    print("Q-table saved to tables/q_table.pkl")
+    save_q_table(agent.q_table)
 
 def control_traffic(vehicle_counts, agent):
     """
