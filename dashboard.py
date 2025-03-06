@@ -14,7 +14,7 @@ class SimVehicle:
         self.direction = direction  # "horizontal" or "vertical"
         self.lane = lane  # "incoming" or "outgoing"
         self.color = color
-        self.speed = 5
+        self.speed = 5  # Default speed, will be overridden based on lane density
         self.size = 20  # Size of vehicle
         self.stopped = False
         self.passed_light = False  # Track if vehicle has passed the traffic light
@@ -250,6 +250,22 @@ def initialize_vehicles(vehicle_counts, width, height):
     center_x = width / 2
     center_y = height / 2
     
+    # Calculate speed based on vehicle count - more vehicles = slower speed
+    max_count = max(vehicle_counts.values())
+    min_count = min(vehicle_counts.values())
+    
+    # Map vehicle count to speed range (2 = slowest, 8 = fastest)
+    count_to_speed = {}
+    for video, count in vehicle_counts.items():
+        # If all lanes have same count, use default speed
+        if max_count == min_count:
+            count_to_speed[video] = 5
+        else:
+            # Normalize and invert (highest count = lowest speed)
+            normalized = (max_count - count) / (max_count - min_count) if max_count > min_count else 0
+            # Map to speed range 2-8
+            count_to_speed[video] = 2 + normalized * 6
+    
     # Define lane positions - adjusted to be behind traffic lights
     lanes = {
         "horizontal": {
@@ -278,6 +294,9 @@ def initialize_vehicles(vehicle_counts, width, height):
     for i, (video, count) in enumerate(vehicle_counts.items()):
         direction = "horizontal" if i < 2 else "vertical"
         lane = "incoming" if i % 2 == 0 else "outgoing"
+        
+        # Get speed for this lane
+        speed = count_to_speed[video]
         
         # Scale display count while keeping original count for tracking
         display_count = min(int(count / 10) + 1, 8)  # Scale down and ensure at least 1
@@ -310,7 +329,9 @@ def initialize_vehicles(vehicle_counts, width, height):
                         y = start_positions[direction][lane][0] - (j % 3) * 80
             
             color = colors[j % len(colors)]
-            vehicles.append(SimVehicle(x, y, direction, lane, color))
+            vehicle = SimVehicle(x, y, direction, lane, color)
+            vehicle.speed = speed  # Set speed based on lane density
+            vehicles.append(vehicle)
     
     return vehicles
 
@@ -329,8 +350,8 @@ def count_vehicles_by_lane(vehicles):
         
     return counts
 
-def spawn_new_vehicle(direction, lane, width, height, colors):
-    """Create a new vehicle at the edge of the frame"""
+def spawn_new_vehicle(direction, lane, width, height, colors, speed=5):
+    """Create a new vehicle at the edge of the frame with specified speed"""
     road_width = 100
     center_x = width / 2
     center_y = height / 2
@@ -364,7 +385,9 @@ def spawn_new_vehicle(direction, lane, width, height, colors):
     # Choose random color
     color = colors[np.random.randint(0, len(colors))]
     
-    return SimVehicle(x, y, direction, lane, color)
+    vehicle = SimVehicle(x, y, direction, lane, color)
+    vehicle.speed = speed  # Set the speed
+    return vehicle
 
 def main():
     st.set_page_config(page_title="Traffic Junction Dashboard", layout="wide")
@@ -446,7 +469,7 @@ def main():
     
     # Start button for running both simulations simultaneously
     if st.button("Run Both Simulations Side-by-Side", key="both_simulations"):
-        run_simultaneous_simulations(results, video_counts, timings)
+        run_simultaneous_simulations(results, video_counts, timings, lane_mapping)  # Fixed duplicate parameter
     
     # Or run individual simulations 
     sim_col1, sim_col2 = st.columns(2)
@@ -454,14 +477,14 @@ def main():
     with sim_col1:
         st.subheader("AI-Optimized Simulation")
         if st.button("Start Optimized Simulation", key="optimized_sim"):
-            run_simulation(results, video_counts, timings, "Optimized")
+            run_simulation(results, video_counts, timings, "Optimized", lane_mapping)
     
     with sim_col2:
         st.subheader("Default Timing Simulation")
         if st.button("Start Default Simulation (10s each)", key="default_sim"):
             # Use fixed timings of 10 seconds for each light
             default_timings = [10, 10, 10, 10]
-            run_simulation(results, video_counts, default_timings, "Default 10s")
+            run_simulation(results, video_counts, default_timings, "Default 10s", lane_mapping)
     
     # Create a section for additional insights
     st.header("Traffic Analysis Insights")
@@ -510,7 +533,7 @@ def main():
     
     st.pyplot(fig)
 
-def run_simulation(results, video_counts, timings, mode_name):
+def run_simulation(results, video_counts, timings, mode_name, lane_mapping=None):
     """Run a traffic light simulation with the given timings"""
     # Create placeholders for simulation displays
     simulation_placeholder = st.empty()
@@ -701,10 +724,31 @@ def run_simulation(results, video_counts, timings, mode_name):
         "efficiency": efficiency
     }
 
-def run_simultaneous_simulations(results, video_counts, optimized_timings):
+def run_simultaneous_simulations(results, video_counts, optimized_timings, lane_mapping):
     """Run both optimized and default timings simulations side by side"""
-    # Define default timings (10s each)
-    default_timings = [10, 10, 10, 10]
+    # Calculate default timing as total optimized cycle time divided by 4
+    total_opt_time = sum(optimized_timings)
+    default_time_per_lane = int(total_opt_time / 4)  # Integer division to remove decimals
+    default_timings = [default_time_per_lane] * 4
+    
+    # Display timing information
+    st.info(f"""
+    Timing information:
+    - Optimized timings: {optimized_timings} seconds (total: {total_opt_time} seconds)
+    - Default timing: {default_time_per_lane} seconds per lane (total: {sum(default_timings)} seconds)
+    """)
+    
+    # Calculate speed mapping based on vehicle counts
+    max_count = max(video_counts.values())
+    min_count = min(video_counts.values())
+    
+    count_to_speed = {}
+    for video, count in video_counts.items():
+        if max_count == min_count:
+            count_to_speed[video] = 5
+        else:
+            normalized = (max_count - count) / (max_count - min_count) if max_count > min_count else 0
+            count_to_speed[video] = 2 + normalized * 6
     
     # Create two columns for side-by-side comparison
     col1, col2 = st.columns(2)
@@ -752,23 +796,47 @@ def run_simultaneous_simulations(results, video_counts, optimized_timings):
         "Vertical outgoing": video_counts.get("video4.mp4", 0) / 300
     }
     
-    # Create initial vehicles for optimized simulation
+    # Create initial vehicles for optimized simulation with lane-based speeds
     opt_vehicles = []
     for direction in ["horizontal", "vertical"]:
         for lane in ["incoming", "outgoing"]:
             lane_key = f"{direction.capitalize()} {lane}"
             initial_count = int(opt_lane_tracking[lane_key]["initial"] / 4)
+            
+            # Get video key for this lane
+            video_key = None
+            for v_key, l_name in lane_mapping.items():
+                if l_name == lane_key:
+                    video_key = v_key
+                    break
+            
+            # Get speed for this lane
+            speed = count_to_speed.get(video_key, 5)
+            
             for _ in range(initial_count):
-                opt_vehicles.append(spawn_new_vehicle(direction, lane, 600, 600, colors))
+                vehicle = spawn_new_vehicle(direction, lane, 600, 600, colors, speed)
+                opt_vehicles.append(vehicle)
     
-    # Create initial vehicles for default simulation
+    # Create initial vehicles for default simulation with lane-based speeds
     def_vehicles = []
     for direction in ["horizontal", "vertical"]:
         for lane in ["incoming", "outgoing"]:
             lane_key = f"{direction.capitalize()} {lane}"
             initial_count = int(def_lane_tracking[lane_key]["initial"] / 4)
+            
+            # Get video key for this lane
+            video_key = None
+            for v_key, l_name in lane_mapping.items():
+                if l_name == lane_key:
+                    video_key = v_key
+                    break
+            
+            # Get speed for this lane
+            speed = count_to_speed.get(video_key, 5)
+            
             for _ in range(initial_count):
-                def_vehicles.append(spawn_new_vehicle(direction, lane, 600, 600, colors))
+                vehicle = spawn_new_vehicle(direction, lane, 600, 600, colors, speed)
+                def_vehicles.append(vehicle)
     
     # Initialize simulation state
     cycle_count = 0
@@ -839,7 +907,18 @@ def run_simultaneous_simulations(results, video_counts, optimized_timings):
                     for lane in ["incoming", "outgoing"]:
                         lane_key = f"{direction.capitalize()} {lane}"
                         if np.random.random() < lane_traffic_rates[lane_key] * 2:
-                            opt_vehicles.append(spawn_new_vehicle(direction, lane, 600, 600, colors))
+                            # Get video key for this lane
+                            video_key = None
+                            for v_key, l_name in lane_mapping.items():
+                                if l_name == lane_key:
+                                    video_key = v_key
+                                    break
+                            
+                            # Get speed for this lane
+                            speed = count_to_speed.get(video_key, 5)
+                            
+                            vehicle = spawn_new_vehicle(direction, lane, 600, 600, colors, speed)
+                            opt_vehicles.append(vehicle)
             
             # Spawn vehicles for default simulation
             if current_time - def_last_spawn > 2.0:
@@ -848,7 +927,18 @@ def run_simultaneous_simulations(results, video_counts, optimized_timings):
                     for lane in ["incoming", "outgoing"]:
                         lane_key = f"{direction.capitalize()} {lane}"
                         if np.random.random() < lane_traffic_rates[lane_key] * 2:
-                            def_vehicles.append(spawn_new_vehicle(direction, lane, 600, 600, colors))
+                            # Get video key for this lane
+                            video_key = None
+                            for v_key, l_name in lane_mapping.items():
+                                if l_name == lane_key:
+                                    video_key = v_key
+                                    break
+                            
+                            # Get speed for this lane
+                            speed = count_to_speed.get(video_key, 5)
+                            
+                            vehicle = spawn_new_vehicle(direction, lane, 600, 600, colors, speed)
+                            def_vehicles.append(vehicle)
             
             # Move vehicles in optimized simulation
             opt_to_remove = []
